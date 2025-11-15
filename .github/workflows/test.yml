@@ -177,24 +177,4 @@ jobs:
 
       - name: Run Mining Monitor
         run: |
-          python test/monitor.py > monitor_output.txt 2>&1 &
-          MONITOR_PID=$!
-          sleep 300
-          kill $MONITOR_PID 2>/dev/null || true
-
-      - name: Display Monitor Output
-        if: always()
-        run: |
-          if [ -f monitor_output.txt ]; then
-            cat monitor_output.txt
-          fi
-
-      - name: Upload Monitor Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: monitor-results
-          path: |
-            monitor_output.txt
-            test/monitor.log
-          retention-days: 7
+          timeout 300 python monitor.py || true
