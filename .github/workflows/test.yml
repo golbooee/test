@@ -177,8 +177,7 @@ jobs:
 
       - name: Run Mining Monitor
         run: |
-          cd test
-          python monitor.py > monitor_output.txt 2>&1 &
+          python test/monitor.py > monitor_output.txt 2>&1 &
           MONITOR_PID=$!
           sleep 300
           kill $MONITOR_PID 2>/dev/null || true
@@ -186,8 +185,8 @@ jobs:
       - name: Display Monitor Output
         if: always()
         run: |
-          if [ -f test/monitor_output.txt ]; then
-            cat test/monitor_output.txt
+          if [ -f monitor_output.txt ]; then
+            cat monitor_output.txt
           fi
 
       - name: Upload Monitor Results
@@ -196,6 +195,6 @@ jobs:
         with:
           name: monitor-results
           path: |
-            test/monitor_output.txt
+            monitor_output.txt
             test/monitor.log
           retention-days: 7
