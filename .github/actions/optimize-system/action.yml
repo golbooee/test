@@ -1,0 +1,24 @@
+name: 'Optimize System for Mining'
+description: 'Optimizes Ubuntu system for XMR mining with proper kernel parameters and dependencies'
+runs:
+  using: "composite"
+  steps:
+    - name: Install Dependencies
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y wget tar cmake build-essential libhwloc-dev libuv1-dev libssl-dev git
+
+    - name: Configure Kernel Parameters
+      shell: bash
+      run: |
+        sudo sysctl -w vm.nr_hugepages=512
+        sudo sysctl -w kernel.randomize_va_space=0
+        sudo sysctl -w vm.swappiness=1
+        sudo sysctl -w kernel.numa_balancing=0
+        sudo bash -c "echo 0 > /proc/sys/kernel/nmi_watchdog" || true
+
+    - name: Set CPU Performance Mode
+      shell: bash
+      run: |
+        echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true
