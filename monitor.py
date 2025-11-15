@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 WALLET = "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS"
-CHECK_INTERVAL = 60  # Reduced from 300 to 60 seconds for better monitoring
+CHECK_INTERVAL = 300
 
 def clear_screen():
     print("\033[H\033[J", end="")
@@ -190,7 +190,7 @@ def get_xmr_price():
                 "ids": "monero",
                 "vs_currencies": "usd"
             },
-            timeout=5
+            timeout=360
         )
         response.raise_for_status()
         price = response.json()['monero']['usd']
